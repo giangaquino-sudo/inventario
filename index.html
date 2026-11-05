@@ -137,7 +137,7 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
 </script>
 
 <!-- ========================================== -->
-<!-- BLOQUE UNIFICADO DE SINCRONIZACIÓN EN TIEMPO REAL -->
+<!-- BLOQUE DE SINCRONIZACIÓN INTELIGENTE EN TIEMPO REAL -->
 <!-- ========================================== -->
 <script src="https://gstatic.com"></script>
 <script src="https://gstatic.com"></script>
@@ -164,9 +164,37 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
         firebase.initializeApp(firebaseConfig);
       }
       const realtimeDb = firebase.database();
-      console.log("¡Conexión exitosa con la nube de Firebase!");
 
-      // Interceptar el guardado nativo de tu inventario
+      realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
+        let remoteData = snapshot.val();
+        
+        if (!remoteData) {
+          const estructuraLimpia = { catalog: [], moves: [], orders: [], lots: [] };
+          remoteData = JSON.stringify(estructuraLimpia);
+          realtimeDb.ref('inventario_compartido').set(remoteData);
+        }
+
+        localStorage.setItem('inventario', remoteData);
+        localStorage.setItem('pao_db', remoteData);
+        
+        if (window.db) {
+          try {
+            window.db = JSON.parse(remoteData);
+            if (typeof window.renderAll === 'function') {
+              window.renderAll();
+            } else {
+              if (typeof window.renderCatalog === 'function') window.renderCatalog();
+              if (typeof window.renderStock === 'function') window.renderStock();
+              if (typeof window.renderMoves === 'function') window.renderMoves();
+              if (typeof window.renderOrders === 'function') window.renderOrders();
+              if (typeof window.renderHistory === 'function') window.renderHistory();
+            }
+          } catch (e) {
+            console.error("Error en renderizado:", e);
+          }
+        }
+      });
+
       const nativePersist = window.persist;
       window.persist = function(msg) {
         if (typeof nativePersist === 'function') nativePersist(msg);
@@ -175,32 +203,6 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
             .catch(err => console.error("Error al transmitir a Firebase:", err));
         }
       };
-
-      // Escuchar la nube y actualizar PC y celular al mismo tiempo
-      realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
-        const remoteData = snapshot.val();
-        if (remoteData) {
-          localStorage.setItem('inventario', remoteData);
-          localStorage.setItem('pao_db', remoteData);
-          
-          if (window.db) {
-            try {
-              window.db = JSON.parse(remoteData);
-              if (typeof window.renderAll === 'function') {
-                window.renderAll();
-              } else {
-                if (typeof window.renderCatalog === 'function') window.renderCatalog();
-                if (typeof window.renderStock === 'function') window.renderStock();
-                if (typeof window.renderMoves === 'function') window.renderMoves();
-                if (typeof window.renderOrders === 'function') window.renderOrders();
-                if (typeof window.renderHistory === 'function') window.renderHistory();
-              }
-            } catch (e) {
-              console.error("Error procesando actualización remota:", e);
-            }
-          }
-        }
-      });
     };
 
     if (document.readyState === 'loading') {
