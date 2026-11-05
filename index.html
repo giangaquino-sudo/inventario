@@ -134,6 +134,8 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
   const originalMovementSubmit=$('movementForm');originalMovementSubmit?.addEventListener('submit',()=>{const pao=$('movePao').value.trim();setTimeout(()=>{if(window.db.moves[0]){window.db.moves[0].pao=pao;window.persist()}},0)});
 })();
   // ... aquí termina tu código nativo normal ...
+</script>
+
 <!-- ========================================== -->
 <!-- BLOQUE DE SINCRONIZACIÓN AUTOMÁTICA EN TIEMPO REAL -->
 <!-- ========================================== -->
@@ -167,7 +169,6 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
       realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
         const remoteData = snapshot.val();
         if (remoteData) {
-          // Forzar el guardado en todas las posibles variantes de memoria
           localStorage.setItem('inventario', remoteData);
           localStorage.setItem('pao_db', remoteData);
           localStorage.setItem('db', remoteData);
@@ -190,15 +191,15 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
         }
       });
 
-      // FUNCIÓN CLAVE: Sincronizar automáticamente ante cualquier clic en "Guardar" o "Enviar"
-      const sincronizarNube Directa = () => {
+      // Función corregida sin espacios
+      const sincronizarNubeDirecta = () => {
         if (window.db) {
           realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
             .catch(err => console.error("Error enviando a Firebase:", err));
         }
       };
 
-      // Escuchar todos los formularios de tu página (Catálogo, Movimientos, Despachos)
+      // Detectar envíos de formularios y clics de guardado
       document.addEventListener('submit', () => {
         setTimeout(sincronizarNubeDirecta, 100);
       });
