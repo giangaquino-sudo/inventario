@@ -137,16 +137,16 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
 </script>
 
 <!-- ========================================== -->
-<!-- BLOQUE DE SINCRONIZACIÓN AUTOMÁTICA POR PROXY EN TIEMPO REAL -->
+<!-- BLOQUE DE SINCRONIZACIÓN DIRECTA EN TIEMPO REAL -->
 <!-- ========================================== -->
 <script src="https://gstatic.com"></script>
 <script src="https://gstatic.com"></script>
 
 <script>
   (function() {
-    const conectarFirebase = () => {
+    const inicializarSincronizacion = () => {
       if (typeof firebase === 'undefined') {
-        setTimeout(conectarFirebase, 200);
+        setTimeout(inicializarSincronizacion, 200);
         return;
       }
 
@@ -165,63 +165,60 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
       }
       const realtimeDb = firebase.database();
 
-      // Transmitir datos locales hacia Firebase
-      const transmitirANube = (datos) => {
-        if (datos) {
-          realtimeDb.ref('inventario_compartido').set(JSON.stringify(datos))
-            .catch(err => console.error("Error enviando a Firebase:", err));
-        }
-      };
+      // Variable para evitar bucles infinitos de actualización
+      let bloqueandoSincronizacion = false;
 
-      // Escuchar la nube continuamente para pintar los datos en PC y celular
+      // 1. ESCUCHAR LA NUBE: Cuando el celular o la PC cambien algo, actualiza al otro
       realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
         const remoteData = snapshot.val();
-        if (remoteData) {
+        if (remoteData && !bloqueandoSincronizacion) {
+          bloqueandoSincronizacion = true;
+          
+          // Guardar en todas las posibles claves de memoria del navegador
           localStorage.setItem('inventario', remoteData);
           localStorage.setItem('pao_db', remoteData);
           localStorage.setItem('db', remoteData);
           
-          Object.keys(localStorage).forEach(key => {
-            localStorage.setItem(key, remoteData);
-          });
-
+          // Actualizar el estado interno de la página activa
           if (window.db) {
             try {
-              const parsed = JSON.parse(remoteData);
-              // Evitar bucles infinitos comparando si los datos cambiaron antes de sobreescribir
-              if (JSON.stringify(window.db) !== remoteData) {
-                window.db = parsed;
-                if (typeof window.renderAll === 'function') window.renderAll();
-                if (typeof window.renderCatalog === 'function') window.renderCatalog();
-                if (typeof window.renderStock === 'function') window.renderStock();
-                if (typeof window.renderMoves === 'function') window.renderMoves();
-              }
+              window.db = JSON.parse(remoteData);
+              if (typeof window.renderAll === 'function') window.renderAll();
+              if (typeof window.renderCatalog === 'function') window.renderCatalog();
+              if (typeof window.renderStock === 'function') window.renderStock();
+              if (typeof window.renderMoves === 'function') window.renderMoves();
             } catch (e) {
-              console.error("Error al renderizar datos remotos:", e);
+              console.error("Error al pintar datos remotos:", e);
             }
           }
+          bloqueandoSincronizacion = false;
         }
       });
 
-      // ENLACE MAGNÉTICO DE MEMORIA: Intercepta cambios directos en window.db
+      // 2. INTERCEPTAR ALMACENAMIENTO: Forzar el envío a la nube al guardar
+      const originalSetItem = localStorage.setItem;
+      localStorage.setItem = function(key, value) {
+        originalSetItem.apply(this, arguments);
+        
+        // Si el script nativo guarda datos de inventario, los mandamos a Firebase de inmediato
+        if (!bloqueandoSincronizacion && window.db && (key.includes('db') || key.includes('inventario') || key.includes('pao_db'))) {
+          bloqueandoSincronizacion = true;
+          realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
+            .then(() => { bloqueandoSincronizacion = false; })
+            .catch(err => { console.error("Error en Firebase:", err); bloqueandoSincronizacion = false; });
+        }
+      };
+
+      // Forzar una sincronización inicial con lo que ya tiene la PC guardado
       if (window.db) {
-        window.db = new Proxy(window.db, {
-          set(target, property, value) {
-            target[property] = value;
-            // Se activa solo ante cualquier adición o cambio de stock en la memoria
-            transmitirANube(target);
-            return true;
-          }
-        });
-        // Sincronizar el estado actual inicial de la PC inmediatamente
-        transmitirANube(window.db);
+        realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db));
       }
     };
 
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', conectarFirebase);
+      document.addEventListener('DOMContentLoaded', inicializarSincronizacion);
     } else {
-      conectarFirebase();
+      inicializarSincronizacion();
     }
   })();
 </script>
