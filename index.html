@@ -137,7 +137,7 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
 </script>
 
 <!-- ========================================== -->
-<!-- BLOQUE DE SINCRONIZACIÓN AUTOMÁTICA EN TIEMPO REAL -->
+<!-- BLOQUE DE SINCRONIZACIÓN AUTOMÁTICA POR PROXY EN TIEMPO REAL -->
 <!-- ========================================== -->
 <script src="https://gstatic.com"></script>
 <script src="https://gstatic.com"></script>
@@ -165,6 +165,14 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
       }
       const realtimeDb = firebase.database();
 
+      // Transmitir datos locales hacia Firebase
+      const transmitirANube = (datos) => {
+        if (datos) {
+          realtimeDb.ref('inventario_compartido').set(JSON.stringify(datos))
+            .catch(err => console.error("Error enviando a Firebase:", err));
+        }
+      };
+
       // Escuchar la nube continuamente para pintar los datos en PC y celular
       realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
         const remoteData = snapshot.val();
@@ -179,11 +187,15 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
 
           if (window.db) {
             try {
-              window.db = JSON.parse(remoteData);
-              if (typeof window.renderAll === 'function') window.renderAll();
-              if (typeof window.renderCatalog === 'function') window.renderCatalog();
-              if (typeof window.renderStock === 'function') window.renderStock();
-              if (typeof window.renderMoves === 'function') window.renderMoves();
+              const parsed = JSON.parse(remoteData);
+              // Evitar bucles infinitos comparando si los datos cambiaron antes de sobreescribir
+              if (JSON.stringify(window.db) !== remoteData) {
+                window.db = parsed;
+                if (typeof window.renderAll === 'function') window.renderAll();
+                if (typeof window.renderCatalog === 'function') window.renderCatalog();
+                if (typeof window.renderStock === 'function') window.renderStock();
+                if (typeof window.renderMoves === 'function') window.renderMoves();
+              }
             } catch (e) {
               console.error("Error al renderizar datos remotos:", e);
             }
@@ -191,23 +203,19 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
         }
       });
 
-      // Función corregida sin espacios
-      const sincronizarNubeDirecta = () => {
-        if (window.db) {
-          realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
-            .catch(err => console.error("Error enviando a Firebase:", err));
-        }
-      };
-
-      // Detectar envíos de formularios y clics de guardado
-      document.addEventListener('submit', () => {
-        setTimeout(sincronizarNubeDirecta, 100);
-      });
-      document.addEventListener('click', (e) => {
-        if (e.target && (e.target.innerText.includes('Guardar') || e.target.id === 'enviar')) {
-          setTimeout(sincronizarNubeDirecta, 100);
-        }
-      });
+      // ENLACE MAGNÉTICO DE MEMORIA: Intercepta cambios directos en window.db
+      if (window.db) {
+        window.db = new Proxy(window.db, {
+          set(target, property, value) {
+            target[property] = value;
+            // Se activa solo ante cualquier adición o cambio de stock en la memoria
+            transmitirANube(target);
+            return true;
+          }
+        });
+        // Sincronizar el estado actual inicial de la PC inmediatamente
+        transmitirANube(window.db);
+      }
     };
 
     if (document.readyState === 'loading') {
