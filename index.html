@@ -134,10 +134,8 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
   const originalMovementSubmit=$('movementForm');originalMovementSubmit?.addEventListener('submit',()=>{const pao=$('movePao').value.trim();setTimeout(()=>{if(window.db.moves[0]){window.db.moves[0].pao=pao;window.persist()}},0)});
 })();
   // ... aquí termina tu código nativo normal ...
-</script>
-
 <!-- ========================================== -->
-<!-- BLOQUE DE SINCRONIZACIÓN INTELIGENTE EN TIEMPO REAL -->
+<!-- BLOQUE DE SINCRONIZACIÓN CORREGIDO EN TIEMPO REAL -->
 <!-- ========================================== -->
 <script src="https://gstatic.com"></script>
 <script src="https://gstatic.com"></script>
@@ -165,21 +163,29 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
       }
       const realtimeDb = firebase.database();
 
+      // Escuchar la nube y actualizar con la estructura real de tu sistema
       realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
         let remoteData = snapshot.val();
         
+        // Inicializar con la estructura exacta de tu consola: products, moves, orders, arrivals, seq
         if (!remoteData) {
-          const estructuraLimpia = { catalog: [], moves: [], orders: [], lots: [] };
-          remoteData = JSON.stringify(estructuraLimpia);
+          const estructuraReal = { products: [], moves: [], orders: [], arrivals: [], seq: 0 };
+          remoteData = JSON.stringify(estructuraReal);
           realtimeDb.ref('inventario_compartido').set(remoteData);
         }
 
-        localStorage.setItem('inventario', remoteData);
-        localStorage.setItem('pao_db', remoteData);
+        // Buscar qué clave usa tu script nativo para persistir y actualizarla
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('db') || key.includes('inventario') || key.includes('empaque')) {
+            localStorage.setItem(key, remoteData);
+          }
+        });
         
         if (window.db) {
           try {
             window.db = JSON.parse(remoteData);
+            
+            // Forzar el redibujado de tus tablas nativas
             if (typeof window.renderAll === 'function') {
               window.renderAll();
             } else {
@@ -190,11 +196,12 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
               if (typeof window.renderHistory === 'function') window.renderHistory();
             }
           } catch (e) {
-            console.error("Error en renderizado:", e);
+            console.error("Error al procesar actualización remota:", e);
           }
         }
       });
 
+      // Interceptar el guardado nativo de tu inventario
       const nativePersist = window.persist;
       window.persist = function(msg) {
         if (typeof nativePersist === 'function') nativePersist(msg);
