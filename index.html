@@ -133,4 +133,50 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
   const originalCatalogSubmit=$('catalogForm');originalCatalogSubmit?.addEventListener('submit',()=>{const id=$('editProductId').value;setTimeout(()=>{const p=id?window.product(id):window.db.products[window.db.products.length-1];if(p){p.pao=$('prodPao').value.trim();window.persist()}},0)});
   const originalMovementSubmit=$('movementForm');originalMovementSubmit?.addEventListener('submit',()=>{const pao=$('movePao').value.trim();setTimeout(()=>{if(window.db.moves[0]){window.db.moves[0].pao=pao;window.persist()}},0)});
 })();
-</script></body></html>
+<!-- Librerías de Firebase para tiempo real -->
+<script src="https://gstatic.com"></script>
+<script src="https://gstatic.com"></script>
+
+<script>
+  // Tus credenciales reales de Firebase
+  const firebaseConfig = {
+    apiKey: "AIzaSyCje-tf0kK4k8iy_G-GHkr8DKhYIO6n6wA",
+    authDomain: "://firebaseapp.com",
+    databaseURL: "https://firebaseio.com",
+    projectId: "control-empaques",
+    storageBucket: "control-empaques.firebasestorage.app",
+    messagingSenderId: "608289897125",
+    appId: "1:608289897125:web:eebab592be9589e142b4c"
+  };
+
+  // Inicializar Firebase
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  const realtimeDb = firebase.database();
+
+  // Modificar la persistencia para que guarde en la nube automáticamente
+  const nativePersist = window.persist;
+  window.persist = function() {
+    if (typeof nativePersist === 'function') nativePersist();
+    if (window.db) {
+      realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
+        .catch(err => console.error("Error al sincronizar en la nube:", err));
+    }
+  };
+
+  // Escuchar la nube y actualizar la PC y Celular en milisegundos
+  realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
+    const remoteData = snapshot.val();
+    if (remoteData) {
+      localStorage.setItem('pao_db', remoteData);
+      if (window.db && typeof window.renderAll === 'function') {
+        window.db = JSON.parse(remoteData);
+        window.renderAll();
+      }
+    }
+  });
+</script>
+</body>
+</html>
+
