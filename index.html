@@ -134,19 +134,17 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
   const originalMovementSubmit=$('movementForm');originalMovementSubmit?.addEventListener('submit',()=>{const pao=$('movePao').value.trim();setTimeout(()=>{if(window.db.moves[0]){window.db.moves[0].pao=pao;window.persist()}},0)});
 })();
   // ... aquí termina tu código nativo normal ...
-</script>
-
 <!-- ========================================== -->
-<!-- BLOQUE DE SINCRONIZACIÓN EN TIEMPO REAL COPIAR TAL CUAL -->
+<!-- BLOQUE DE SINCRONIZACIÓN AUTOMÁTICA EN TIEMPO REAL -->
 <!-- ========================================== -->
 <script src="https://gstatic.com"></script>
 <script src="https://gstatic.com"></script>
 
 <script>
   (function() {
-    const conectarNube = () => {
+    const conectarFirebase = () => {
       if (typeof firebase === 'undefined') {
-        setTimeout(conectarNube, 200);
+        setTimeout(conectarFirebase, 200);
         return;
       }
 
@@ -165,51 +163,56 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
       }
       const realtimeDb = firebase.database();
 
-      // Escuchar la base de datos de Firebase continuamente
+      // Escuchar la nube continuamente para pintar los datos en PC y celular
       realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
         const remoteData = snapshot.val();
-        
         if (remoteData) {
-          // Actualizar todas las posibles variantes de almacenamiento local
+          // Forzar el guardado en todas las posibles variantes de memoria
           localStorage.setItem('inventario', remoteData);
           localStorage.setItem('pao_db', remoteData);
           localStorage.setItem('db', remoteData);
           
+          Object.keys(localStorage).forEach(key => {
+            localStorage.setItem(key, remoteData);
+          });
+
           if (window.db) {
             try {
               window.db = JSON.parse(remoteData);
-              // Forzar el renderizado usando tus funciones nativas
-              if (typeof window.renderAll === 'function') {
-                window.renderAll();
-              } else {
-                if (typeof window.renderCatalog === 'function') window.renderCatalog();
-                if (typeof window.renderStock === 'function') window.renderStock();
-                if (typeof window.renderMoves === 'function') window.renderMoves();
-                if (typeof window.renderOrders === 'function') window.renderOrders();
-                if (typeof window.renderHistory === 'function') window.renderHistory();
-              }
+              if (typeof window.renderAll === 'function') window.renderAll();
+              if (typeof window.renderCatalog === 'function') window.renderCatalog();
+              if (typeof window.renderStock === 'function') window.renderStock();
+              if (typeof window.renderMoves === 'function') window.renderMoves();
             } catch (e) {
-              console.error("Error al pintar los datos remotos:", e);
+              console.error("Error al renderizar datos remotos:", e);
             }
           }
         }
       });
 
-      // Interceptar el guardado para actualizar Firebase ante cualquier movimiento
-      const nativePersist = window.persist;
-      window.persist = function(msg) {
-        if (typeof nativePersist === 'function') nativePersist(msg);
+      // FUNCIÓN CLAVE: Sincronizar automáticamente ante cualquier clic en "Guardar" o "Enviar"
+      const sincronizarNube Directa = () => {
         if (window.db) {
           realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
-            .catch(err => console.error("Error transmitiendo a Firebase:", err));
+            .catch(err => console.error("Error enviando a Firebase:", err));
         }
       };
+
+      // Escuchar todos los formularios de tu página (Catálogo, Movimientos, Despachos)
+      document.addEventListener('submit', () => {
+        setTimeout(sincronizarNubeDirecta, 100);
+      });
+      document.addEventListener('click', (e) => {
+        if (e.target && (e.target.innerText.includes('Guardar') || e.target.id === 'enviar')) {
+          setTimeout(sincronizarNubeDirecta, 100);
+        }
+      });
     };
 
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', conectarNube);
+      document.addEventListener('DOMContentLoaded', conectarFirebase);
     } else {
-      conectarNube();
+      conectarFirebase();
     }
   })();
 </script>
