@@ -133,12 +133,15 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
   const originalCatalogSubmit=$('catalogForm');originalCatalogSubmit?.addEventListener('submit',()=>{const id=$('editProductId').value;setTimeout(()=>{const p=id?window.product(id):window.db.products[window.db.products.length-1];if(p){p.pao=$('prodPao').value.trim();window.persist()}},0)});
   const originalMovementSubmit=$('movementForm');originalMovementSubmit?.addEventListener('submit',()=>{const pao=$('movePao').value.trim();setTimeout(()=>{if(window.db.moves[0]){window.db.moves[0].pao=pao;window.persist()}},0)});
 })();
-<!-- Librerías de Firebase para tiempo real -->
+<!-- Forzar el cierre seguro de cualquier script nativo anterior -->
+</script>
+
+<!-- 1. CARGAR LIBRERÍAS DE FIREBASE DE FORMA INDEPENDIENTE -->
 <script src="https://gstatic.com"></script>
 <script src="https://gstatic.com"></script>
 
+<!-- 2. CONFIGURACIÓN Y SINCRONIZACIÓN EN TIEMPO REAL -->
 <script>
-  // Tus credenciales reales de Firebase
   const firebaseConfig = {
     apiKey: "AIzaSyCje-tf0kK4k8iy_G-GHkr8DKhYIO6n6wA",
     authDomain: "://firebaseapp.com",
@@ -149,43 +152,38 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
     appId: "1:608289897125:web:eebab592be9589e142b4c"
   };
 
-  // Inicializar Firebase de forma segura
+  // Inicializar Firebase
   if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
   }
   const realtimeDb = firebase.database();
 
-  // Interceptar la persistencia nativa de tu aplicación
+  // Interceptar el sistema de guardado nativo de tu inventario
   const nativePersist = window.persist;
   window.persist = function(msg) {
-    // 1. Ejecuta el guardado local original de tu script
     if (typeof nativePersist === 'function') {
       nativePersist(msg);
     } else if (window.db && typeof window.db.persist === 'function') {
       window.db.persist(msg);
     }
     
-    // 2. Sincroniza inmediatamente todo el estado con la nube de Firebase
+    // Transmitir instantáneamente los datos a la nube
     if (window.db) {
       realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
-        .catch(err => console.error("Error al transmitir a la nube:", err));
+        .catch(err => console.error("Error al transmitir a Firebase:", err));
     }
   };
 
-  // Escuchar la nube continuamente para actualizar PC y Celular al instante
+  // Escuchar la nube para actualizar la PC y Celular en milisegundos
   realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
     const remoteData = snapshot.val();
     if (remoteData) {
-      // Sincronizar el almacenamiento del navegador
       localStorage.setItem('inventario', remoteData);
       localStorage.setItem('pao_db', remoteData);
       
-      // Forzar la actualización visual completa de tus tablas nativas
       if (window.db) {
         try {
           window.db = JSON.parse(remoteData);
-          
-          // Ejecutar las funciones de renderizado que vimos en tus fotos
           if (typeof window.renderAll === 'function') {
             window.renderAll();
           } else {
@@ -196,7 +194,7 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
             if (typeof window.renderHistory === 'function') window.renderHistory();
           }
         } catch (e) {
-          console.error("Error al procesar la actualización en vivo:", e);
+          console.error("Error en sincronización en vivo:", e);
         }
       }
     }
@@ -204,4 +202,3 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
 </script>
 </body>
 </html>
-
