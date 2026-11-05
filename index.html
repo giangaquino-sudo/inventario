@@ -149,30 +149,55 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
     appId: "1:608289897125:web:eebab592be9589e142b4c"
   };
 
-  // Inicializar Firebase
+  // Inicializar Firebase de forma segura
   if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
   }
   const realtimeDb = firebase.database();
 
-  // Modificar la persistencia para que guarde en la nube automáticamente
+  // Interceptar la persistencia nativa de tu aplicación
   const nativePersist = window.persist;
-  window.persist = function() {
-    if (typeof nativePersist === 'function') nativePersist();
+  window.persist = function(msg) {
+    // 1. Ejecuta el guardado local original de tu script
+    if (typeof nativePersist === 'function') {
+      nativePersist(msg);
+    } else if (window.db && typeof window.db.persist === 'function') {
+      window.db.persist(msg);
+    }
+    
+    // 2. Sincroniza inmediatamente todo el estado con la nube de Firebase
     if (window.db) {
       realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
-        .catch(err => console.error("Error al sincronizar en la nube:", err));
+        .catch(err => console.error("Error al transmitir a la nube:", err));
     }
   };
 
-  // Escuchar la nube y actualizar la PC y Celular en milisegundos
+  // Escuchar la nube continuamente para actualizar PC y Celular al instante
   realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
     const remoteData = snapshot.val();
     if (remoteData) {
+      // Sincronizar el almacenamiento del navegador
+      localStorage.setItem('inventario', remoteData);
       localStorage.setItem('pao_db', remoteData);
-      if (window.db && typeof window.renderAll === 'function') {
-        window.db = JSON.parse(remoteData);
-        window.renderAll();
+      
+      // Forzar la actualización visual completa de tus tablas nativas
+      if (window.db) {
+        try {
+          window.db = JSON.parse(remoteData);
+          
+          // Ejecutar las funciones de renderizado que vimos en tus fotos
+          if (typeof window.renderAll === 'function') {
+            window.renderAll();
+          } else {
+            if (typeof window.renderCatalog === 'function') window.renderCatalog();
+            if (typeof window.renderStock === 'function') window.renderStock();
+            if (typeof window.renderMoves === 'function') window.renderMoves();
+            if (typeof window.renderOrders === 'function') window.renderOrders();
+            if (typeof window.renderHistory === 'function') window.renderHistory();
+          }
+        } catch (e) {
+          console.error("Error al procesar la actualización en vivo:", e);
+        }
       }
     }
   });
