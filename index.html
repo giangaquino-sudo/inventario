@@ -135,79 +135,80 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
 })();
   // ... aquí termina tu código nativo normal ...
 </script>
- <script>
-</script>
 
-<!-- 1. CARGA INMEDIATA DE LIBRERÍAS DE FIREBASE -->
+<!-- ========================================== -->
+<!-- BLOQUE UNIFICADO DE SINCRONIZACIÓN EN TIEMPO REAL -->
+<!-- ========================================== -->
 <script src="https://gstatic.com"></script>
 <script src="https://gstatic.com"></script>
 
-<!-- 2. CONTROL DE FLUJO Y SINCRONIZACIÓN AUTOMÁTICA -->
 <script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyCje-tf0kK4k8iy_G-GHkr8DKhYIO6n6wA",
-    authDomain: "://firebaseapp.com",
-    databaseURL: "https://firebaseio.com",
-    projectId: "control-empaques",
-    storageBucket: "control-empaques.firebasestorage.app",
-    messagingSenderId: "608289897125",
-    appId: "1:608289897125:web:eebab592be9589e142b4c"
-  };
+  (function() {
+    const iniciarFirebase = () => {
+      if (typeof firebase === 'undefined') {
+        setTimeout(iniciarFirebase, 200);
+        return;
+      }
 
-  // Inicializar la conexión en la nube
-  if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-  }
-  const realtimeDb = firebase.database();
+      const firebaseConfig = {
+        apiKey: "AIzaSyCje-tf0kK4k8iy_G-GHkr8DKhYIO6n6wA",
+        authDomain: "://firebaseapp.com",
+        databaseURL: "https://firebaseio.com",
+        projectId: "control-empaques",
+        storageBucket: "control-empaques.firebasestorage.app",
+        messagingSenderId: "608289897125",
+        appId: "1:608289897125:web:eebab592be9589e142b4c"
+      };
 
-  // Interceptar la persistencia de datos (Cuando guardas o mueves stock)
-  const originalPersist = window.persist;
-  window.persist = function(msg) {
-    if (typeof originalPersist === 'function') originalPersist(msg);
-    if (window.db) {
-      realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
-        .catch(err => console.error("Error al transmitir datos:", err));
-    }
-  };
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      const realtimeDb = firebase.database();
+      console.log("¡Conexión exitosa con la nube de Firebase!");
 
-  // Función mágica: Escucha la nube y obliga a la pantalla a redibujarse
-  realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
-    const remoteData = snapshot.val();
-    if (remoteData) {
-      // Sincronizar memorias internas
-      localStorage.setItem('inventario', remoteData);
-      localStorage.setItem('pao_db', remoteData);
-      
-      try {
-        // Inyectar el JSON de la nube directo a tu sistema
-        window.db = JSON.parse(remoteData);
-        
-        // Forzar la actualización visual de todas tus tablas nativas
-        if (typeof window.renderAll === 'function') {
-          window.renderAll();
-        } else {
-          if (typeof window.renderCatalog === 'function') window.renderCatalog();
-          if (typeof window.renderStock === 'function') window.renderStock();
-          if (typeof window.renderMoves === 'function') window.renderMoves();
-          if (typeof window.renderOrders === 'function') window.renderOrders();
-          if (typeof window.renderHistory === 'function') window.renderHistory();
+      // Interceptar el guardado nativo de tu inventario
+      const nativePersist = window.persist;
+      window.persist = function(msg) {
+        if (typeof nativePersist === 'function') nativePersist(msg);
+        if (window.db) {
+          realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
+            .catch(err => console.error("Error al transmitir a Firebase:", err));
         }
-      } catch (e) {
-        console.error("Error al procesar la actualización en vivo:", e);
-      }
-    }
-  });
+      };
 
-  // Forzar una primera carga en vivo al abrir la aplicación
-  window.addEventListener('DOMContentLoaded', () => {
-    realtimeDb.ref('inventario_compartido').once('value').then((snapshot) => {
-      const initialData = snapshot.val();
-      if (initialData && window.db) {
-        window.db = JSON.parse(initialData);
-        if (typeof window.renderAll === 'function') window.renderAll();
-      }
-    });
-  });
+      // Escuchar la nube y actualizar PC y celular al mismo tiempo
+      realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
+        const remoteData = snapshot.val();
+        if (remoteData) {
+          localStorage.setItem('inventario', remoteData);
+          localStorage.setItem('pao_db', remoteData);
+          
+          if (window.db) {
+            try {
+              window.db = JSON.parse(remoteData);
+              if (typeof window.renderAll === 'function') {
+                window.renderAll();
+              } else {
+                if (typeof window.renderCatalog === 'function') window.renderCatalog();
+                if (typeof window.renderStock === 'function') window.renderStock();
+                if (typeof window.renderMoves === 'function') window.renderMoves();
+                if (typeof window.renderOrders === 'function') window.renderOrders();
+                if (typeof window.renderHistory === 'function') window.renderHistory();
+              }
+            } catch (e) {
+              console.error("Error procesando actualización remota:", e);
+            }
+          }
+        }
+      });
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', iniciarFirebase);
+    } else {
+      iniciarFirebase();
+    }
+  })();
 </script>
 </body>
 </html>
