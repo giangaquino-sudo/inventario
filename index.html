@@ -17,6 +17,9 @@
 @media(max-width:1050px){.sidebar{width:215px}.content{padding:24px 20px}.topbar{padding:0 20px}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.two-col{grid-template-columns:1fr}}
 @media(max-width:700px){.app{display:block}.sidebar{display:none}.topbar{height:60px;padding:0 15px}.mobilemenu{display:inline-flex}.content{padding:20px 13px}.headingrow{flex-direction:column}.cards{gap:9px}.stat{padding:13px}.statnum{font-size:23px}.stathead{font-size:10px}.headingrow h2{font-size:24px}.formgrid{grid-template-columns:1fr}.field.full{grid-column:auto}.search{min-width:100%;width:100%}.panelhead{align-items:flex-start;flex-direction:column}.topright{gap:8px}}
 </style>
+ <!-- Librerías de Firebase en tiempo real -->
+<script src="https://gstatic.com"></script>
+<script src="https://gstatic.com"></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -133,15 +136,9 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
   const originalCatalogSubmit=$('catalogForm');originalCatalogSubmit?.addEventListener('submit',()=>{const id=$('editProductId').value;setTimeout(()=>{const p=id?window.product(id):window.db.products[window.db.products.length-1];if(p){p.pao=$('prodPao').value.trim();window.persist()}},0)});
   const originalMovementSubmit=$('movementForm');originalMovementSubmit?.addEventListener('submit',()=>{const pao=$('movePao').value.trim();setTimeout(()=>{if(window.db.moves[0]){window.db.moves[0].pao=pao;window.persist()}},0)});
 })();
-<!-- Forzar el cierre seguro de cualquier script nativo anterior -->
+  // ... aquí termina tu código nativo normal ...
 </script>
-
-<!-- 1. CARGAR LIBRERÍAS DE FIREBASE DE FORMA INDEPENDIENTE -->
-<script src="https://gstatic.com"></script>
-<script src="https://gstatic.com"></script>
-
-<!-- 2. CONFIGURACIÓN Y SINCRONIZACIÓN EN TIEMPO REAL -->
-<script>
+ <script>
   const firebaseConfig = {
     apiKey: "AIzaSyCje-tf0kK4k8iy_G-GHkr8DKhYIO6n6wA",
     authDomain: "://firebaseapp.com",
@@ -158,23 +155,17 @@ function renderAll(){renderStats();renderStock();renderSelects();renderMovement(
   }
   const realtimeDb = firebase.database();
 
-  // Interceptar el sistema de guardado nativo de tu inventario
+  // Interceptar guardado nativo
   const nativePersist = window.persist;
   window.persist = function(msg) {
-    if (typeof nativePersist === 'function') {
-      nativePersist(msg);
-    } else if (window.db && typeof window.db.persist === 'function') {
-      window.db.persist(msg);
-    }
-    
-    // Transmitir instantáneamente los datos a la nube
+    if (typeof nativePersist === 'function') nativePersist(msg);
     if (window.db) {
       realtimeDb.ref('inventario_compartido').set(JSON.stringify(window.db))
         .catch(err => console.error("Error al transmitir a Firebase:", err));
     }
   };
 
-  // Escuchar la nube para actualizar la PC y Celular en milisegundos
+  // Escuchar cambios en vivo
   realtimeDb.ref('inventario_compartido').on('value', (snapshot) => {
     const remoteData = snapshot.val();
     if (remoteData) {
